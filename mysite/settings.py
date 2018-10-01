@@ -25,7 +25,7 @@ SECRET_KEY = 'x(*n66a(*g!)($+6f6*4x3kkh%-s=7%7d!kltx_8n09-v^dkix'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['127.0.0.1', '*.*.elb.amazonaws.com']
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
