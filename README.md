@@ -44,3 +44,16 @@ $ python manage.py runserver
 $ docker-compose build
 $ docker-compose up -d
 ```
+
+### Create & push ECR(Elastic Container Repository)
+
+CloudFormation(CFn)テンプレート( `cloudformation/template-for-ecr.yml` )を使用して、CFnスタックを作成します。
+
+ECRへのpushコマンドがアウトプットされるので、AWSのデフォルトプロファイルを環境変数に設定した上でECRのプッシュコマンドを実行します。
+
+![](https://raw.githubusercontent.com/rednes/django-tutorial/img/img/cfn-for-ecr.png)
+
+```
+$ export AWS_DEFAULT_PROFILE=<<YOUR PROFILE>>
+$ <<PushCommandsForEcrをコピー＆ペーストして実行>>
+```

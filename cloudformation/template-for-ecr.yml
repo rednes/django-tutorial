@@ -1,0 +1,39 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Django with SQLite on Elastic Container Service(ECR only)'
+
+Parameters:
+  AppEcrRepositoryName:
+    Type: String
+    Description: ElasticContainerRepository Name
+    MinLength: 1
+    Default: 'ecs-django-app-repository'
+  AppEcrRepositoryTag:
+    Type: String
+    Description: ElasticContainerRepository Tag
+    MinLength: 1
+    Default: '0.0.1'
+
+Resources:
+  # ECR
+  AppElasticContainerRepository:
+    Type: 'AWS::ECR::Repository'
+    DeletionPolicy: Retain
+    Properties:
+      RepositoryName: !Sub "${AppEcrRepositoryName}"
+
+Outputs:
+  PushCommandsForEcr:
+    Description: 'push commands for ecr'
+    Value: !Sub
+      - |+
+        $(aws ecr get-login --no-include-email --region ${RegionName}) &&
+        docker build -t ${EcrRepositoryName} . &&
+        docker tag ${EcrRepositoryName}:latest ${AccountId}.dkr.ecr.${RegionName}.amazonaws.com/${EcrRepositoryName}:${EcrRepositoryTag} &&
+        docker push ${AccountId}.dkr.ecr.${RegionName}.amazonaws.com/${EcrRepositoryName}:${EcrRepositoryTag}
+      - {
+        AccountId: !Sub "${AWS::AccountId}",
+        RegionName: !Sub "${AWS::Region}",
+        EcrRepositoryName: !Sub "${AppEcrRepositoryName}",
+        EcrRepositoryTag: !Sub "${AppEcrRepositoryTag}"
+      }
