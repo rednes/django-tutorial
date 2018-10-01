@@ -57,3 +57,11 @@ ECRへのpushコマンドがアウトプットされるので、AWSのデフォ�
 $ export AWS_DEFAULT_PROFILE=<<YOUR PROFILE>>
 $ <<PushCommandsForEcrをコピー＆ペーストして実行>>
 ```
+
+### Create ECS(Elastic Container Service)
+
+CloudFormation(CFn)テンプレート( `cloudformation/template.yml` )を使用して、CFnスタックを作成します。
+
+ELBのURLがアウトプットされるので、アクセスしてDjangoが動作していることを確認します。
+
+![](https://raw.githubusercontent.com/rednes/django-tutorial/img/img/cfn.png)

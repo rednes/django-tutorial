@@ -1,0 +1,320 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Django with SQLite on Elastic Container Service'
+
+Parameters:
+  ExistingAppElasticContainerRepository:
+    Type: String
+    Description : An existing AppElasticContainerRepository(optional)
+    Default : EXIST
+    AllowedValues:
+      - EXIST
+      - NONE
+  PermitGlobalIP:
+    Type: String
+    Description: Permit Global IP
+    MinLength: 1
+    Default: '0.0.0.0/0'
+  CidrPrefix:
+    Type: String
+    Description: CIDR prefix
+    MinLength: 1
+    Default: '10.23'
+  Ec2ImageId:
+    Type: String
+    Description: Image Name for ap-northeast-1(amzn-ami-2018.03.f-amazon-ecs-optimized)
+    MinLength: 1
+    Default: 'ami-0d5f884dada5562c6'
+  Ec2InstanceType:
+    Type: String
+    Description: Ec2InstanceType
+    MinLength: 1
+    Default: 't2.micro'
+  AppEcrRepositoryName:
+    Type: String
+    Description: ElasticContainerRepository Name
+    MinLength: 1
+    Default: 'ecs-django-app-repository'
+  AppEcrRepositoryTag:
+    Type: String
+    Description: ElasticContainerRepository Tag
+    MinLength: 1
+    Default: '0.0.1'
+
+Conditions:
+  CreateNewAppElasticContainerRepository: !Equals [!Ref ExistingAppElasticContainerRepository, NONE]
+
+Resources:
+  # ECR
+  AppElasticContainerRepository:
+    Type: 'AWS::ECR::Repository'
+    Condition: CreateNewAppElasticContainerRepository
+    DeletionPolicy: Retain
+    Properties:
+      RepositoryName: !Sub "${AppEcrRepositoryName}"
+
+  # ECS Cluster
+  EcsCluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: !Sub "ecs-cluster-for-${AWS::StackName}"
+
+  # ECS Task Definition
+  EcsTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      Family: !Sub "task-definition-for-${AWS::StackName}"
+      NetworkMode: bridge
+      RequiresCompatibilities:
+        - EC2
+      ContainerDefinitions:
+        - Name: app
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AppEcrRepositoryName}:${AppEcrRepositoryTag}"
+          Memory: 256
+          Cpu: 256
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8000
+              HostPort: 0
+              Protocol: tcp
+
+  # ECS Service
+  EcsService:
+    Type: 'AWS::ECS::Service'
+    DependsOn:
+      - LoadBalancerListener
+    Properties:
+      ServiceName: !Sub "ecs-service-for-${AWS::StackName}"
+      Cluster: !Ref EcsCluster
+      LoadBalancers:
+        - ContainerName: app
+          ContainerPort: 8000
+          TargetGroupArn: !Ref TargetGroup
+      TaskDefinition: !Ref EcsTaskDefinition
+      DesiredCount: 1
+
+  # ELB
+  ElasticLoadBalancer:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Name:  !Sub "elb-for-${AWS::StackName}"
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref SecurityGroupWebapp
+      Subnets:
+        - !Ref SubnetApp0
+        - !Ref SubnetApp1
+      Type: application
+      IpAddressType: ipv4
+  TargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      HealthCheckIntervalSeconds: 5
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 3
+      HealthyThresholdCount: 2
+      TargetType: instance
+      Name: !Sub "TargetGroup-for-${AWS::StackName}"
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 5
+      VpcId: !Ref VpcForEcs
+  LoadBalancerListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref TargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref ElasticLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  # IAM Role for ECS
+  InstanceRoleForEcs:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub "InstanceRole-for-${AWS::StackName}"
+      AssumeRolePolicyDocument:
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Principal": {
+                "Service": "ec2.amazonaws.com"
+              },
+              "Effect": "Allow",
+              "Sid": ""
+            }
+          ]
+        }
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role'
+  EcsInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    DependsOn:
+      - InstanceRoleForEcs
+    Properties:
+      Roles:
+        - !Ref InstanceRoleForEcs
+      InstanceProfileName: !Sub "instanceProfile-for-${AWS::StackName}"
+
+  # SecurityGroup for ELB
+  SecurityGroupWebapp:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: !Sub "webapp-sg-for-${AWS::StackName}"
+      GroupDescription: for webapp server
+      VpcId: !Ref VpcForEcs
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Sub "${PermitGlobalIP}"
+      Tags:
+        - Key: Name
+          Value: !Sub "webapp-sg-for-${AWS::StackName}"
+
+  # Launch Configuration
+  LaunchConfigurationForEcs:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Properties:
+      LaunchConfigurationName: !Sub "launch-configuration-for-${AWS::StackName}"
+      ImageId: !Sub "${Ec2ImageId}"
+      SecurityGroups:
+        - !Ref SecurityGroupForEcs
+      InstanceType: !Sub "${Ec2InstanceType}"
+      IamInstanceProfile: !Ref EcsInstanceProfile
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvdcz
+          Ebs:
+            VolumeSize: 22
+            VolumeType: gp2
+      InstanceMonitoring: false
+      AssociatePublicIpAddress: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo yum update -y ecs-init
+
+          cat << EOF1 > /etc/ecs/ecs.config
+          ECS_CLUSTER=${EcsCluster}
+          EOF1
+  AutoScalingGroupForEcs:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Properties:
+       AutoScalingGroupName: !Sub "auto-scaling-group-for-${AWS::StackName}"
+       LaunchConfigurationName: !Ref LaunchConfigurationForEcs
+       DesiredCapacity: 1
+       MaxSize: 2
+       MinSize: 0
+       HealthCheckGracePeriod: 300
+       VPCZoneIdentifier:
+         - !Ref SubnetApp0
+         - !Ref SubnetApp1
+       Tags:
+         - Key: Name
+           Value: !Sub "auto-scaling-group-for-${AWS::StackName}"
+           PropagateAtLaunch: True
+
+  # VPC etc
+  VpcForEcs:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !Sub "${CidrPrefix}.0.0/16"
+      Tags:
+        - Key: Name
+          Value: !Sub "vpc-for-${AWS::StackName}"
+  SubnetApp0:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Sub "${CidrPrefix}.0.0/24"
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "app-alpha-subnet-for-${AWS::StackName}"
+      VpcId: !Ref VpcForEcs
+  SubnetApp1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: !Sub "${CidrPrefix}.1.0/24"
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "app-charlie-subnet-for-${AWS::StackName}"
+      VpcId: !Ref VpcForEcs
+  IgwForEcs:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "igw-for-${AWS::StackName}"
+  IgwAttachmentForEcs:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      InternetGatewayId: !Ref IgwForEcs
+      VpcId: !Ref VpcForEcs
+  RouteTableForEcsDefault:
+    Type: 'AWS::EC2::Route'
+    DependsOn: IgwAttachmentForEcs
+    Properties:
+      RouteTableId: !Ref RouteTableForEcs
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IgwForEcs
+  RouteTableForEcs:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VpcForEcs
+      Tags:
+        - Key: Name
+          Value: !Sub "route-table-for-${AWS::StackName}"
+  SubnetRouteTableAttachment0:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref RouteTableForEcs
+      SubnetId: !Ref SubnetApp0
+  SubnetRouteTableAttachment1:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref RouteTableForEcs
+      SubnetId: !Ref SubnetApp1
+  SecurityGroupForEcs:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: !Sub "security-group-for-${AWS::StackName}"
+      GroupDescription: Security group with no ingress rule
+      VpcId: !Ref VpcForEcs
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 32768
+          ToPort: 65535
+          SourceSecurityGroupId: !Ref SecurityGroupWebapp
+      Tags:
+        - Key: Name
+          Value: !Sub "security-group-for-${AWS::StackName}"
+
+Outputs:
+  URL:
+    Description: 'ElasticLoadBalancer URL'
+    Value: !Sub
+      - http://${DNSName}/
+      - {
+          DNSName: !GetAtt ElasticLoadBalancer.DNSName
+        }
+  PushCommandsForEcr:
+    Description: 'push commands for ecr'
+    Value: !Sub
+      - |+
+        $(aws ecr get-login --no-include-email --region ${RegionName}) &&
+        docker build -t ${EcrRepositoryName} . &&
+        docker tag ${EcrRepositoryName}:latest ${AccountId}.dkr.ecr.${RegionName}.amazonaws.com/${EcrRepositoryName}:${EcrRepositoryTag} &&
+        docker push ${AccountId}.dkr.ecr.${RegionName}.amazonaws.com/${EcrRepositoryName}:${EcrRepositoryTag}
+      - {
+          RegionName: !Sub "${AWS::Region}",
+          EcrRepositoryName: !Sub "${AppEcrRepositoryName}",
+          AccountId: !Sub "${AWS::AccountId}",
+          EcrRepositoryTag: !Sub "${AppEcrRepositoryTag}"
+      }
