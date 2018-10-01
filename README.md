@@ -35,3 +35,12 @@ $ pipenv install
 $ pipenv shell
 $ python manage.py runserver
 ```
+
+### Run Server(Docker)
+
+以下コマンドを実行すると、ローカル環境のDockerでサーバを動かせます。
+
+```
+$ docker-compose build
+$ docker-compose up -d
+```
