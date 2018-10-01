@@ -4,7 +4,7 @@ Django Girlsチュートリアル( https://tutorial.djangogirls.org/ja/ )練習�
 
 チュートリアルで構築したDjangoをAWS ElasticContainerService上で動かすことを目標としています。
 
-## (Draft)AWS Configuration Diagram
+## AWS Configuration Diagram
 
 ![](https://raw.githubusercontent.com/rednes/django-tutorial/img/img/ecs.png)
 
@@ -65,3 +65,25 @@ CloudFormation(CFn)テンプレート( `cloudformation/template.yml` )を使用�
 ELBのURLがアウトプットされるので、アクセスしてDjangoが動作していることを確認します。
 
 ![](https://raw.githubusercontent.com/rednes/django-tutorial/img/img/cfn.png)
+
+### Access Web Site
+
+URLにアクセスしてDjangoが動いていることを確認します。
+
+![](https://raw.githubusercontent.com/rednes/django-tutorial/img/img/web01.png)
+
+URLの後ろに `admin/` を追記してアクセするとDjango管理サイトが開きます。
+ユーザ名とパスワードは以下の通り設定しています。
+
+- USER: test
+- PASS: test-password
+
+![](https://raw.githubusercontent.com/rednes/django-tutorial/img/img/web02.png)
+
+ログインしてトップページ右上の `+` ボタンをクリックするとブログの投稿ができます。
+
+![](https://raw.githubusercontent.com/rednes/django-tutorial/img/img/web03.png)
+
+投稿するとトップページに反映されますが、SQLiteで動作しているため、ECSのタスクが止まると投稿したデータは全て消えます。
+
+![](https://raw.githubusercontent.com/rednes/django-tutorial/img/img/web04.png)
