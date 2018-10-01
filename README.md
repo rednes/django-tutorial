@@ -7,3 +7,31 @@ Django Girlsチュートリアル( https://tutorial.djangogirls.org/ja/ )練習�
 ## (Draft)AWS Configuration Diagram
 
 ![](https://raw.githubusercontent.com/rednes/django-tutorial/img/img/ecs.png)
+
+## Requirements
+
+- python (3.6 or later)
+- pipenv (2018.05.18 or later)
+- awscli (1.16 or later)
+- docker (18.06 or later)
+
+## Usage
+
+### Download
+
+適当なディレクトリにリポジトリをクローンしてください。
+
+```
+$ git clone https://github.com/rednes/django-tutorial.git
+$ cd django-tutorial
+```
+
+### Run Server
+
+以下コマンドを実行すると、パッケージをインストールして、Python仮想環境を実行し、ローカル環境でサーバを動かせます。
+
+```
+$ pipenv install
+$ pipenv shell
+$ python manage.py runserver
+```

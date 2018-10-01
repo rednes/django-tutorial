@@ -1,9 +1,7 @@
 *.pyc
 *~
 __pycache__
-mydjango
 /static
 .DS_Store
 
-Pipfile
 Pipfile.lock
