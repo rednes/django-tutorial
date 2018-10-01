@@ -10,3 +10,14 @@ Django = "~=2.0.6"
 
 [requires]
 python_version = "3.6"
+
+[scripts]
+create = "aws cloudformation create-stack --template-body file://./cloudformation/template.yml --stack-name django-tutorial --capabilities CAPABILITY_NAMED_IAM"
+createchangeset = "aws cloudformation create-change-set --change-set-name dry --template-body file://./cloudformation/template.yml --stack-name django-tutorial --capabilities CAPABILITY_NAMED_IAM"
+delete = "aws cloudformation delete-stack --stack-name django-tutorial"
+deletechangeset = "aws cloudformation delete-change-set --change-set-name dry --stack-name django-tutorial"
+lint = "cfn-lint validate cloudformation/template.yml"
+lschangeset = "aws cloudformation describe-change-set --change-set-name dry --stack-name django-tutorial"
+lsstack = "aws cloudformation describe-stacks"
+update = "aws cloudformation update-stack --template-body file://./cloudformation/template.yml --stack-name django-tutorial --capabilities CAPABILITY_NAMED_IAM"
+valid = "aws cloudformation validate-template --template-body file://./cloudformation/template.yml"
